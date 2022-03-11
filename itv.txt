@@ -2,17 +2,205 @@
 
 # 目录
 
+
 # 基础知识
 
 ## 字节序
 
+## 指针和引用
+  * 指针即引用内容的地址，是一个实体
+  * 引用是别名，对引用取地址即取引用内容的地址
+  * 不存在空引用，引用定义时必须初始化，并且初始化后不能改变
+  * 引用的sizeof是引用变量的大小，而指针的sizeof是指针变量的大小
+  * 引用自增是引用变量自增，指针自增使指针指向下一个元素（数组名不能自增）
+
+## 左值和右值
+  * 左值是可寻址的变量（字符串常量、前置自增/自减的表达式是左值）
+  * 右值一般是不可寻址的常量或在表达式求值过程中创建的无名临时对象
+    * 纯右值（C++11之前的右值）：字面值、非引用的返回值、后置自增/自减的表达式、运算结果是字面值或临时对象的表达式、lambda表达式
+    * 将亡值（C++11新增）：可使用右值引用延长生命周期（续命）
+  * 左值引用：
+  
+    ```C++
+    int a = 1;
+    int &ra = a;
+    const int &a1 = 1; // 常引用
+    ```
+  * 右值引用：
+  
+    ```C++
+    int a = 1;
+    int &&rr1 = 1;
+    int &&rra = std::move(a);
+    // 右值引用本身是左值
+    ```
+  * 引用折叠与完美转发：
+
+    ```C++
+    // T& &、T& &&、T&& &都折叠为T&
+    // T&& &&折叠为T&&
+    template <typename T>
+    void
+    f(T* p) {
+      std::cout << "p" << " ";
+    }
+
+    template <typename T>
+    void
+    f(T& r) {
+      std::cout << "r" << " ";
+    }
+
+    template <typename T>
+    void
+    f(T&& rr) {
+      std::cout << "rr" << " ";
+    }
+
+    template <typename T>
+    void
+    ff(T&& rr) {
+      // rr为左值
+      f(rr);                  // T & &&  => void f(int T &)
+      f(std::forward<T>(rr)); // 完美转发
+      std::cout << std::endl;
+    }
+
+    int
+    main(void) {
+      int a = 1;
+      int &ra = a;
+      int *pa = &a;
+      const int& r1 = 1;
+
+      ff(std::move(a)); // T && &&       => void f(int &&)
+      ff(1);            // T &&          => void f(int &&)
+      ff(ra);           // T & &&        => void f(int &)
+      ff(pa);           // T * &&        => void f(int *)，如果void f(T *p)未定义则实例化为void f(int *&)
+      ff(r1);           // const T & &&  => void f(const int &)
+
+      return 0;
+    }
+    
+    //输出结果：
+    //r rr
+    //r rr
+    //r r
+    //p p
+    //r r
+    ```
+  * std::move：C++11开始从语法层面支持了move语义，使用它可以使临时对象的拷贝具有move窃取功能
+  * std::forward：将一组参数原封不动的传递给另一个函数，参数在传递过程中保持其值属性。完美转发可以使一个函数同时提供左值引用和右值引用的版本，在提高效率的同时简化代码
+
+    ```C++
+    template <typename T>
+    void
+    f(T&& rr) {
+      if (std::is_reference<decltype(rr)>::value) {
+        if (std::is_lvalue_reference<decltype(rr)>::value)
+          std::cout << "lf" << std::endl;
+        else if (std::is_rvalue_reference<decltype(rr)>::value)
+          std::cout << "rf" << std::endl;
+      } else {
+        std::cout << "other" << std::endl;
+      }
+    }
+
+    template <typename T>
+    void
+    ff(T&& rr) {
+      f(std::forward<T>(rr));
+    }
+
+    int
+    main(void) {
+      int a = 1;
+      int &ra = a;
+      int *pa = &a;
+      const int& r1 = 1;
+
+      ff(std::move(a));
+      ff(1);
+      ff(ra);
+      ff(pa);
+      ff(r1);
+
+      return 0;
+    }
+    
+    //输出结果：
+    //rf
+    //rf
+    //lf
+    //lf
+    //lf
+    ```
+
+## 内存管理
+  * new/delete与malloc/free：
+    * new/delete是操作符。malloc/free是函数
+    * new从自由存储区分配（默认为堆）。malloc从堆分配
+    * new成功时返回对象指针，失败时抛出std::bad_alloc异常，使用new(std::nothrow)时返回NULL。malloc成功时返回内存起始指针，需要强制转换为具体类型的指针，失败时返回NULL
+    * new根据对象的大小分配空间。malloc需要自行计算
+    * new[]/delete[]对数组进行分配和释放，并且会对每个对象进行构造/析构
+    * realloc可重新分配内存。而new没有相应功能，需要重载operator new()自行实现
+    * C++可通过set_new_handler设置new的错误处理函数，在new抛出异常之前调用。malloc需要判断返回值并自行处理
+    * new分配内存后会调用构造函数，delete释放内存前会调析构函数
+  * 自由存储区和堆：
+    * 自由存储区不等于堆，堆可以是自由存储区的子集
+    * 自由存储区可以是任何内存空间，比如全局/静态的的对象池
+  * malloc和calloc
+    * calloc用于分配n块大小为size的连续空间
+    * calloc对分配的整块内存置0，malloc不会，因此malloc效率更高
+  * delete this注意：
+    1. 确保对象是new出来的
+    2. 确保delete后不会用该对象调用其它（非静态）成员函数
+    3. 确保delete后不能访问对象的任何部分
+    4. 确保delete后this指针不会被访问
+
+## 面向对象
+
+### 类
+  * 构造函数
+  * 析构函数
+
+### [分配器](https://zhuanlan.zhihu.com/p/185611161)
+
+## 技巧
+  * 可变长结构
+  
+    ```C
+    struct {
+      int iType;
+      int iNum;
+      int data[1];
+    } DEMOMSG, *LPDEMOMSG;
+    
+    void
+    pack_demo_msg (char *lpMsg, int data[], int iNum) {
+      LPDEMOMSG lpDemoMsg = (LPDEMOMSG)lpMsg;
+      lpDemoMsg->iNum = iNum;
+      for (int i = 0; i < iNum; ++i) {
+        lpDemoMsg.data[i] = data[i];
+      }
+    }
+    ```
+
+
 # 操作系统
+
+## 地址
+  * 逻辑地址：在有地址变换功能的计算机中，访内指令给出的地址（操作数）叫逻辑地址，由段地址和偏移地址组成
+  * 物理地址：出现在CPU外部地址总线上的寻址物理内存的地址信号
+  * 线性地址：段地址和逻辑地址组成线性地址，如果启用了分页机制，那么线性地址可以再经变换以产生一个物理地址，否则线性地址直接就是物理地址
 
 ## CPU寻址方式
   * 实模式：程序访问的地址都是真实的物理地址，如8086中“段基址：段内偏移地址”产生的逻辑地址就是物理地址。缺点：用户程序和操作系统拥有同等权利，程序可以随意修改任意物理地址，甚至包括操作系统所在的内存，给操作系统带来极大的安全问题
   * 保护模式：CPU访问的所有地址都是逻辑地址（段寄存器都为0的话，逻辑地址就是虚拟地址），CPU会通过“分段”或者“分页”方式来查寻到对应的物理地址。优点：不仅为存储器共享和保护提供了硬件支持，而且为实现虚拟存储器提供了硬件支持，支持多任务，能够快速地进行任务切换和保护任务环境
 
-## <a id="vms">虚拟地址空间</a>[^更多关于虚拟地址空间的内容]
+## [分页](https://www.zhihu.com/question/50796850)
+
+## <a id="vms">虚拟地址空间</a>
   ![image](img/mem_space_cmp.jpg)
   以32位机器举例，进程的虚拟地址空间最大为4GB，其中1GB为内核空间（所有进程共享），进程可访问的实际用户空间只有3GB。
   Linux进程的内存段组成如下：
@@ -47,8 +235,7 @@
       > #endif
       > 
       > int
-      > main ()
-      > {
+      > main () {
       >   return 0;
       > }
       > ```
@@ -59,8 +246,8 @@
   目标文件各个段在文件中的布局：
   ![image](img/elf_and_proc.png)
 
-  > [更多内容](https://fanlv.wiki/2021/07/25/linux-mem/)
-  
+  > [更多关于虚拟地址空间的内容](https://fanlv.wiki/2021/07/25/linux-mem/)
+
 ## mmap和shm
   * mmap（内存映射）：
     * 将一个文件或者其它对象映射到进程的虚拟地址空间，使用户对这段内存区域的修改可以直接反映到内核空间，相反，内核空间对这段区域的修改也直接反映用户空间
@@ -80,12 +267,17 @@
   * 栈：
     * [进程栈](#vms)
     * 线程栈
+      * Linux内核没有线程的概念，Linux把线程当作进程来实现
+      * Linux线程和进程的共享地址空间，但栈不共享，并且不能动态增长
+      * Linux线程对应单个task，每个线程拥有一个task_struct，进程实际上是一个task组，每个进程拥有一个mm_struct，进程中的线程共享mm_struct结构
     * 内核栈
+      * 进程通过到系统调用陷入内核时，使用的是单独的内核空间的栈，每个进程都会拥有属于自己的内核栈
     * 中断栈
+      * 中断栈同样处于内核空间，中断栈是可以和内核栈共享，具体取决于内核的实现和处理架构
     > Linux的栈大小默认为8M（ulimit -s），可使用 `ulimit -s` 修改，Windows的栈大小默认为1M（VC6），可使用 `/stack` 参数修改
   * 堆：
     *
-  * 栈和堆的区别：
+  * 栈和堆：
     * 生长方向：栈的地址增长方向取决于平台和编译器实现（比如x86的栈是向下增长的，原因是栈向下增长，堆向上增长，可以提高内存利用率）
     * 分配方式：栈由编译器自动分配和释放。堆由程序员控制，容易产生内存泄露
     * 空间大小：栈顶地址和栈的最大容量由系统预先规定，栈的大小超容量限制会栈溢出。堆的大小则受限于计算机系统中有效的地址空间
@@ -99,25 +291,27 @@
 ## 动态库、静态库
 
 ### 动态库
-  * dlopen
+  *
 ### 静态库
   *
 ### **注意**
   1. **动态库中的全局变量、静态变量在进程间不会相互覆盖，写时拷贝（进程修改动态库中的全局变量、静态变量时，操作系统会重新分配内存并映射到进程地址空间，变量的逻辑地址不变）**
-  2. **可执行文件和动态库同时引用同一个静态库，静态库中的全局变量和静态变量会分别初始化一次**
+  2. **可执行文件和动态库同时引用同一个静态库，静态库中的全局变量和静态变量会分别初始化一次[详情](https://cloud.tencent.com/developer/article/1173666)**
+
 
 # 编译原理
 
-## fPIC和fPIE
+## PIC和PIE
   * PIC（位置无关代码）
   * PIE（位置无关可执行程序）
-  
-## _stdcall和__stdcall、_fastcall的区别
+  * 两者是等价的，-fPIC用于生成动态库，-fPIE用与生成可执行文件
+
+## _stdcall和__stdcall、_fastcall
   * __cdecl是C/C++和MFC程序默认使用的调用约定。函数参数按照从右到左的顺序入栈，并且由调用函数者把参数弹出栈以清理堆栈（可变参数只能用__cdecll；由于每个调用__cdecl函数的代码都要包含清理堆栈的代码，产生的可执行文件大小会比较大）
   * __stdcall调用约定用于调用Win32 API函数。函数参数按照从右到左的顺序入栈，被调用的函数在返回前清理传送参数的栈，函数参数个数固定
   * __fastcall约定用于对性能要求非常高的场合。_fastcall约定将函数的从左边开始的两个大小不大于4个字节（DWORD）的参数分别放在ECX和EDX寄存器，其余的参数仍旧自右向左压栈传送，被调用的函数在返回前清理传送参数的堆栈。（__fastcall可以写成_fastcall）
   * thiscall仅仅应用于"C++"成员函数。this指针存放于CX寄存器，函数参数按照从右到左的顺序入栈，不能被程序员指定
-  
+
 
 # 汇编
 
@@ -130,8 +324,19 @@
   * [UNPV](https://github.com/ManyyWu/Notes/blob/master/Linux/Programming/UNP%E7%AC%94%E8%AE%B0.md)
   * [服务器IO模型](https://fanlv.wiki/2018/07/15/server-io-model/)
 
+
+# Autotools
+
+
+# make
+
+
+# CMake
+
 # [Shell](https://github.com/ManyyWu/Notes/blob/master/Linux/Programming/Shell.md)
 
+
 # [MySQl](https://fanlv.wiki/categories/MySQL/)
+
 
 # [Redis](https://fanlv.wiki/categories/Redis/)
