@@ -1,9 +1,7 @@
-<div align='center' ><font size='70'>Itv</font></div>
-
 # 目录
 
 
-# 基础知识
+# C/C++
 
 ## 字节序
 
@@ -13,6 +11,15 @@
   * 不存在空引用，引用定义时必须初始化，并且初始化后不能改变
   * 引用的sizeof是引用变量的大小，而指针的sizeof是指针变量的大小
   * 引用自增是引用变量自增，指针自增使指针指向下一个元素（数组名不能自增）
+
+## const \*和\* const区别
+  * const默认修饰左边的对象，若左边没有对象，则修饰右边的对象
+  ```C++
+  const int *p;             // 修饰int
+  int const *p;             // 修饰int
+  int * const p = pp;       // 修饰int *
+  const int * const p = pp; // 修饰int和int *
+  ```
 
 ## 左值和右值
   * 左值是可寻址的变量（字符串常量、前置自增/自减的表达式是左值）
@@ -136,27 +143,13 @@
     //lf
     ```
 
-## 内存管理
-  * new/delete与malloc/free：
-    * new/delete是操作符。malloc/free是函数
-    * new从自由存储区分配（默认为堆）。malloc从堆分配
-    * new成功时返回对象指针，失败时抛出std::bad_alloc异常，使用new(std::nothrow)时返回NULL。malloc成功时返回内存起始指针，需要强制转换为具体类型的指针，失败时返回NULL
-    * new根据对象的大小分配空间。malloc需要自行计算
-    * new[]/delete[]对数组进行分配和释放，并且会对每个对象进行构造/析构
-    * realloc可重新分配内存。而new没有相应功能，需要重载operator new()自行实现
-    * C++可通过set_new_handler设置new的错误处理函数，在new抛出异常之前调用。malloc需要判断返回值并自行处理
-    * new分配内存后会调用构造函数，delete释放内存前会调析构函数
-  * 自由存储区和堆：
-    * 自由存储区不等于堆，堆可以是自由存储区的子集
-    * 自由存储区可以是任何内存空间，比如全局/静态的的对象池
-  * malloc和calloc
-    * calloc用于分配n块大小为size的连续空间
-    * calloc对分配的整块内存置0，malloc不会，因此malloc效率更高
-  * delete this注意：
-    1. 确保对象是new出来的
-    2. 确保delete后不会用该对象调用其它（非静态）成员函数
-    3. 确保delete后不能访问对象的任何部分
-    4. 确保delete后this指针不会被访问
+## 异常
+### 
+  * 构造函数和析构函数可以抛出异常，但在析构函数中抛出异常容易导致内存泄漏
+### 优点
+### 缺点
+### RAII
+### 二段式构造
 
 ## 面向对象
 
@@ -186,6 +179,27 @@
     }
     ```
 
+## 内存管理
+  * new/delete与malloc/free：
+    * new/delete是操作符。malloc/free是函数
+    * new从自由存储区分配（默认为堆）。malloc从堆分配
+    * new成功时返回对象指针，失败时抛出std::bad_alloc异常，使用new(std::nothrow)时返回NULL。malloc成功时返回内存起始指针，需要强制转换为具体类型的指针，失败时返回NULL
+    * new根据对象的大小分配空间。malloc需要自行计算
+    * new[]/delete[]对数组进行分配和释放，并且会对每个对象进行构造/析构
+    * realloc可重新分配内存。而new没有相应功能，需要重载operator new()自行实现
+    * C++可通过set_new_handler设置new的错误处理函数，在new抛出异常之前调用。malloc需要判断返回值并自行处理
+    * new分配内存后会调用构造函数，delete释放内存前会调析构函数
+  * 自由存储区和堆：
+    * 自由存储区不等于堆，堆可以是自由存储区的子集
+    * 自由存储区可以是任何内存空间，比如全局/静态的的对象池
+  * malloc和calloc
+    * calloc用于分配n块大小为size的连续空间
+    * calloc对分配的整块内存置0，malloc不会，因此malloc效率更高
+  * delete this注意：
+    1. 确保对象是new出来的
+    2. 确保delete后不会用该对象调用其它（非静态）成员函数
+    3. 确保delete后不能访问对象的任何部分
+    4. 确保delete后this指针不会被访问
 
 # 操作系统
 
